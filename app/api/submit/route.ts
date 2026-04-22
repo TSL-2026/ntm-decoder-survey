@@ -20,7 +20,7 @@ export async function POST(req: Request) {
         { error: "Valid email required" },
         { status: 400 }
       );
-    }
+    }aI
 
     const supabase = createClient(
       process.env.NEXT_PUBLIC_SUPABASE_URL!,
