@@ -12,6 +12,10 @@ const steps = [
 export default function SurveyForm() {
   const [step, setStep] = useState(0);
   const [loading, setLoading] = useState(false);
+  const [message, setMessage] = useState("");
+  const [messageType, setMessageType] = useState<
+    "" | "success" | "warning" | "error"
+  >("");
 
   const [formData, setFormData] = useState({
     email: "",
@@ -30,32 +34,60 @@ export default function SurveyForm() {
 
   function update(field: string, value: string) {
     setFormData((prev) => ({ ...prev, [field]: value }));
+    if (message) {
+      setMessage("");
+      setMessageType("");
+    }
   }
 
   async function handleSubmit() {
     setLoading(true);
+    setMessage("");
+    setMessageType("");
 
-    const data = {
-      ...formData,
-      source: new URLSearchParams(window.location.search).get("src"),
-    };
+    try {
+      const data = {
+        ...formData,
+        source: new URLSearchParams(window.location.search).get("src") || "direct",
+      };
 
-    const res = await fetch("/api/submit", {
-      method: "POST",
-      body: JSON.stringify(data),
-    });
+      const res = await fetch("/api/submit", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(data),
+      });
 
-    if (res.ok) {
-      window.location.href = "/thanks";
-    } else {
-      alert("Something went wrong");
+      const result = await res.json().catch(() => ({}));
+
+      if (res.ok) {
+        setMessage("Thank you! Your response has been recorded.");
+        setMessageType("success");
+        window.location.href = "/thanks";
+        return;
+      }
+
+      if (res.status === 409) {
+        setMessage(
+          result.error || "This email has already submitted a response."
+        );
+        setMessageType("warning");
+        return;
+      }
+
+      setMessage(result.error || "Something went wrong. Please try again.");
+      setMessageType("error");
+    } catch (error) {
+      setMessage("Network error. Please try again.");
+      setMessageType("error");
+    } finally {
       setLoading(false);
     }
   }
 
   return (
     <div style={{ display: "grid", gap: 20 }}>
-      
       {/* Progress */}
       <div>
         Step {step + 1} of {steps.length}
@@ -86,6 +118,9 @@ export default function SurveyForm() {
             onChange={(e) => update("email", e.target.value)}
             placeholder="Email address"
           />
+          <small style={{ color: "#6b7280" }}>
+            One response per email.
+          </small>
         </>
       )}
 
@@ -133,14 +168,51 @@ export default function SurveyForm() {
         </>
       )}
 
+      {/* Inline Message */}
+      {message && (
+        <div
+          style={{
+            padding: "10px 12px",
+            borderRadius: 6,
+            fontSize: 14,
+            lineHeight: 1.5,
+            background:
+              messageType === "success"
+                ? "#ecfdf3"
+                : messageType === "warning"
+                ? "#fffbeb"
+                : "#fef2f2",
+            color:
+              messageType === "success"
+                ? "#166534"
+                : messageType === "warning"
+                ? "#92400e"
+                : "#b91c1c",
+            border:
+              messageType === "success"
+                ? "1px solid #bbf7d0"
+                : messageType === "warning"
+                ? "1px solid #fde68a"
+                : "1px solid #fecaca",
+          }}
+        >
+          {message}
+        </div>
+      )}
+
       {/* Navigation */}
       <div style={{ display: "flex", gap: 10 }}>
-        {step > 0 && <button onClick={back}>Back</button>}
+        {step > 0 && (
+          <button onClick={back} disabled={loading}>
+            Back
+          </button>
+        )}
 
         {step < steps.length - 1 ? (
           <button
             onClick={next}
             disabled={
+              loading ||
               (step === 0 && !formData.email) ||
               (step === 1 && !formData.role) ||
               (step === 2 && !formData.use_case)
